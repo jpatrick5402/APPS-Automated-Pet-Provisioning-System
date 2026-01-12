@@ -17,11 +17,11 @@ https://support.google.com/accounts/answer/185833?hl=en
 #define EMAIL_SMTP_PORT YOUR_EMAIL_PROVIDERS_SMTP_PORT
 #define EMAIL_SMTP_HOST "YOUR.EMAIL.PROVIDERS.SMTP.HOST"
 
-#define STP_1 13
-#define STP_2 12
-#define STP_3 14
-#define STP_4 27
-#define PUMP_PIN 26
+#define STP_1 15
+#define STP_2 2
+#define STP_3 4
+#define STP_4 16
+#define PUMP_PIN 23
 
 const String times[2] = {"07:00", "18:00"}; // times to output provisions
 
@@ -71,14 +71,21 @@ void send_email(String text) {
   MailClient.sendMail(&smtp, &message);
 }
 
+void test_loop() {
+  while (true) {
+    digitalWrite(PUMP_PIN, HIGH);
+    delay(1000);
+    digitalWrite(PUMP_PIN, LOW);
+    delay(1000);
+    stepper.step(1024);
+    delay(1000);
+  }
+}
+
 void loop() {
   String time = timeClient.getFormattedTime().substring(0,5);
   Serial.println(time);
-  delay(5000);
-  digitalWrite(PUMP_PIN, HIGH);
-  delay(2000);
-  digitalWrite(PUMP_PIN, LOW);
-  delay(2000);
+  test_loop();
   for (String t : times) { // loop through times and check if any of them are now
     if (t == time) {
       Serial.println("time triggered");
