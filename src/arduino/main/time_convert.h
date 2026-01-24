@@ -13,8 +13,8 @@ int day_of_year(unsigned long epoch_time) {
   return (epoch_time / seconds_to_days) - (epoch_time / seconds_to_years_with_leap) * 365.2422 + 1;
 }
 
-int day_of_week(unsigned long epoch_time) { // Thursday is 0
-  return (epoch_time / seconds_to_days) % 7;
+int day_of_week(unsigned long epoch_time) { // Thursday is 1
+  return ((epoch_time / seconds_to_days) % 7) + 1;
 }
 
 int day_of_month(unsigned long epoch_time) {
@@ -81,14 +81,15 @@ int month(unsigned long epoch_time) {
 
 bool is_DST(unsigned long epoch_time) {
   int dw = day_of_week(epoch_time);
-  int dm = day_of_month(epoch_time);
+  int dm = day_of_month(epoch_time); // Sunday is 4
   int m = month(epoch_time);
 
   // if middle month or after second Sunday in March or before first Sunday in November
+  // see photos/DST_logic.jpeg for more details
   if (
     (3 < m && m < 11) ||
-    (m == 3 && (dm > 7 && ((dw >= 3 && dw - dm <=  2) || (dw < 3 && dw - dm <= -5)))) ||
-    (m == 11 &&           ((dw < 3 && dw - dm >= -4) || (dw > 3 && dw - dm >=  3)))
+    (m == 3 && (dm > 7 && ((dw <= 4 && dw - dm <= -4) || (dw >= 4 && dw - dm <  4)))) ||
+    (m == 11 &&           ((dw < 4 && dw - dm >  -4) || (dw > 4 && dw - dm >= 4)))
   ) return true;
   else return false;
 }
