@@ -110,12 +110,10 @@ void send_email(String body) {
 
 void loop() {
   String times[2] = {"07:00", "18:00"}; // times to output provisions
-  test_loop(timeClient, food_scale, water_scale, stepper, PUMP_PIN); // TODO comment out before production
   String time = timeClient.getFormattedTime().substring(0,5);
   delay(1000);
   for (String t : times) { // loop through times and check if any of them are now
     if (t == time) {
-      if (is_DST(timeClient.getEpochTime())) delay(3600000); // wait an hour if DST
       // add food until full
       int counter = 0; // counter if food runs out
       while (food_scale.get_units(10) < FOOD_THRESHOLD_G && counter < CYCLE_LIMIT) {
@@ -140,6 +138,9 @@ void loop() {
 
       delay(60000); // wait for the minute to be over so it doesn't re-trigger
       timeClient.update(); // update to current time via NTP
+
+      if (is_DST(timeClient.getEpochTime())) timeClient.setOffset(-14400);
+      else timeClient.setOffset(-18000);
     }
   }
 }
