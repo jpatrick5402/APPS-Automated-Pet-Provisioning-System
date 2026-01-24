@@ -1,4 +1,4 @@
-// main.c - source code for APPS system
+// main.ino - source code for APPS system
 // Delveloped by Joseph Patrick
 #include <WiFi.h>
 #include <NTPClient.h>
@@ -7,16 +7,21 @@
 #include <Stepper.h>
 #include <HX711.h>
 
+#include <time_convert.h>
+#include <test.h>
+
 #define WIFI_SSID "Your Wi-Fi Name"
 #define WIFI_PASSWORD "Your Wi-Fi Password"
 
 #define EMAIL_FROM "Your email"
 #define EMAIL_TO "Your email or elsewhere"
+#define EMAIL_TO_2 "Anyone you want to CC"
 #define EMAIL_PASSWORD "Your email application password"
 // https://support.google.com/accounts/answer/185833?hl=en
 #define EMAIL_SMTP_PORT YOUR_EMAIL_PROVIDERS_SMTP_PORT
 #define EMAIL_SMTP_HOST "YOUR.EMAIL.PROVIDERS.SMTP.HOST"
 
+// Pin definitions
 #define STP_1 15
 #define STP_2 2
 #define STP_3 4
@@ -26,11 +31,23 @@
 #define WATER_SCALE_DOUT 18
 #define FOOD_SCALE_SCK 19
 #define FOOD_SCALE_DOUT 21
+
 // see calibrate() to get DIVIDER and OFFSET
-#define WATER_SCALE_OFFSET 142368
-#define WATER_SCALE_DIVIDER 439.5
-#define FOOD_SCALE_OFFSET -391764
-#define FOOD_SCALE_DIVIDER 429.58
+#define FOOD_SCALE_OFFSET -368175
+#define FOOD_SCALE_DIVIDER 427.33
+#define WATER_SCALE_OFFSET 169276.5
+#define WATER_SCALE_DIVIDER 438.16
+
+// amount of food and water until full
+#define FOOD_THRESHOLD_G 40
+#define WATER_THRESHOLD_G 160
+
+// how much food/water to give per cycle
+#define FOOD_PRECISION 512 // stepper motor steps
+#define WATER_PRECISION 5000 // ms of water delivery
+// too many cycles = out of food/water 
+#define CYCLE_LIMIT 30
+
 
 Stepper stepper(2048, STP_1, STP_2, STP_3, STP_4); // stepper step count & pins
 
@@ -44,7 +61,7 @@ NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", -18000, 60000);
 
 void setup() {
   Serial.begin(115200);
-  Serial.println(F("\n\n---------------------------------------------"));
+  Serial.println(F("\n\r---------------------------------------------\n\r"));
 
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting");
@@ -73,93 +90,56 @@ void setup() {
   food_scale.set_scale(FOOD_SCALE_DIVIDER);
 }
 
-void send_email(String text) {
+void send_email(String body) {
   ESP_Mail_Session session;
   session.server.host_name = EMAIL_SMTP_HOST;
   session.server.port = EMAIL_SMTP_PORT;
   session.login.email = EMAIL_FROM;
   session.login.password = EMAIL_PASSWORD;
+
   SMTP_Message message;
   message.sender.email = EMAIL_FROM;
   message.subject = "APPS Notification";
   message.addRecipient("", EMAIL_TO);
-  message.html.content = text;
+  message.addRecipient("", EMAIL_TO_2);
+  message.html.content = body;
+
   smtp.connect(&session);
   MailClient.sendMail(&smtp, &message);
 }
 
-void calibrate(HX711 scale) {
-  if (scale.is_ready()) {
-    scale.set_scale(1);
-    scale.set_offset(0);
-    Serial.println("Offset... remove any weights from the scale.");
-    delay(8000);
-    Serial.print("Offset: ");
-    long offset = scale.read_average(30);
-    Serial.println(offset);
-    Serial.println("Place a known weight on the scale...");
-    delay(8000);
-    Serial.print("Scale: ");
-    long known = scale.get_units(30);
-    Serial.print(known - offset);
-    Serial.println(" / KNOWN WEIGHT = SCALE");
-  }
-  else {
-    Serial.println("HX711 not found.");
-  }
-  delay(1000);
-}
-
-void test_loop() {
-  while (true) {
-    //delay(10000);
-    //Serial.println("Calibrating Food Scale");
-    //calibrate(food_scale);
-    //Serial.println("Calibrating Water Scale");
-    //calibrate(water_scale);
-    //digitalWrite(PUMP_PIN, HIGH);
-    //delay(1000);
-    //digitalWrite(PUMP_PIN, LOW);
-    //delay(1000);
-    //stepper.step(1024);
-    //delay(1000);
-    Serial.print("Water: ");
-    Serial.println(water_scale.get_units(10));
-    delay(1001);
-    Serial.print("Food: ");
-    Serial.println(food_scale.get_units(10));
-    delay(1000);
-  }
-}
-
 void loop() {
-  test_loop();
   String times[2] = {"07:00", "18:00"}; // times to output provisions
+  test_loop(timeClient, food_scale, water_scale, stepper, PUMP_PIN); // TODO comment out before production
   String time = timeClient.getFormattedTime().substring(0,5);
-  Serial.println(time);
+  delay(1000);
   for (String t : times) { // loop through times and check if any of them are now
     if (t == time) {
-      Serial.println("time triggered");
-      // while (food is below threshold) {
-      //   stepper.step(512);
-      //   re-measure
-      // }
-      // if (food is empty) {
-      //   send_email("Food is empty");
-      // }
-      //
-      // while (water is below threshold) {
-      //   digitalWrite(pump_pin, HIGH);
-      //   re-measure;
-      // }
-      // digitalWrite(pump_pin, LOW);
-      // if (water is empty) {
-      //   send_email("Water is empty");
-      // }
+      if (is_DST(timeClient.getEpochTime())) delay(3600000); // wait an hour if DST
+      // add food until full
+      int counter = 0; // counter if food runs out
+      while (food_scale.get_units(10) < FOOD_THRESHOLD_G && counter < CYCLE_LIMIT) {
+        stepper.step(FOOD_PRECISION);
+        counter++;
+      }
+
+      // send email if refill needed
+      if (!counter < CYCLE_LIMIT) send_email("Food Container is empty, please refill ASAP");
+
+      // add water until full
+      counter = 0; // reset counter
+      while (water_scale.get_units(10) < WATER_THRESHOLD_G && counter < CYCLE_LIMIT) {
+        digitalWrite(PUMP_PIN, HIGH);
+        delay(WATER_PRECISION);
+        digitalWrite(PUMP_PIN, LOW);
+        counter++;
+      }
+
+      // send email if refill needed
+      if (!counter < CYCLE_LIMIT) send_email("Water Container is empty, please refill ASAP");
 
       delay(60000); // wait for the minute to be over so it doesn't re-trigger
-      timeClient.update(); // update to current time
+      timeClient.update(); // update to current time via NTP
     }
   }
-  delay(1000);
 }
