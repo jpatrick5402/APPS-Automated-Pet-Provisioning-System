@@ -30,7 +30,7 @@ bool production = true;
 #define WATER_SCALE_DIVIDER 442.57
 
 // amount of food and water until full
-#define FOOD_THRESHOLD_G 50
+#define FOOD_THRESHOLD_G 80
 #define WATER_THRESHOLD_G 200
 
 // how much food/water to give per cycle
