@@ -30,7 +30,7 @@ bool production = true;
 #define WATER_SCALE_DIVIDER 442.57
 
 // amount of food and water until full
-#define FOOD_THRESHOLD_G 80
+#define FOOD_THRESHOLD_G 60
 #define WATER_THRESHOLD_G 200
 
 // how much food/water to give per cycle
@@ -64,11 +64,13 @@ void setup() {
   food_scale.set_scale(FOOD_SCALE_DIVIDER);
 
   if (!production) test_loop(timeClient, food_scale, water_scale, AUGER_PIN, PUMP_PIN);
-
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect(true);
+  delay(500);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   Serial.print("Connecting");
   while (WiFi.status() != WL_CONNECTED) { // Wait for connection
-    delay(500);
+    delay(10000);
     Serial.print(".");
   }
   Serial.print("\n");
@@ -78,7 +80,6 @@ void setup() {
   Serial.println(WiFi.localIP());
 
   timeClient.begin();
-  timeClient.update();
 
   ssl_client.setInsecure();
 }
@@ -113,7 +114,8 @@ void send_email(String body) {
 }
 
 void loop() {
-  String times[2] = {"07:00", "18:00"}; // times to output provisions
+  timeClient.update();
+  String times[2] = {"08:00", "18:00"}; // times to output provisions
   if (is_DST(timeClient.getEpochTime())) { timeClient.setTimeOffset(-14400); }
   else { timeClient.setTimeOffset(-18000); }
   String time = timeClient.getFormattedTime().substring(0,5);
@@ -130,6 +132,7 @@ void loop() {
         digitalWrite(AUGER_PIN, HIGH);
         delay(FOOD_PRECISION);
         digitalWrite(AUGER_PIN, LOW);
+        delay(1000);
         counter++;
         bowlAmmount = food_scale.get_units(10);
       }
