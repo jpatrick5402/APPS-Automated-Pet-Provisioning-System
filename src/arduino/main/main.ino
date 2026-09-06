@@ -48,6 +48,55 @@ SMTPClient smtp(ssl_client);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", -18000, 60000);
 
+void connectWiFi() {
+  WiFi.mode(WIFI_STA);
+  // Optionally: WiFi.disconnect(false); // don't erase credentials unless you need to
+
+  Serial.print("Connecting to WiFi: ");
+  Serial.println(WIFI_SSID);
+
+  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+
+  const unsigned long timeout = 30000; // 30 seconds
+  unsigned long start = millis();
+
+  while (WiFi.status() != WL_CONNECTED) {
+    unsigned long elapsed = millis() - start;
+    if (elapsed >= timeout) {
+      Serial.println("\nWiFi connection timed out.");
+      Serial.print("Final status: ");
+      Serial.println(wifiStatusToString(WiFi.status()));
+      // Optionally reboot or go into a safe loop
+      while (true) {
+        delay(5000);
+        Serial.println("No WiFi – halting.");
+      }
+    }
+
+    Serial.print(".");
+    delay(500); // faster feedback, less blocking
+
+    wl_status_t s = WiFi.status();
+    if (s == WL_CONNECT_FAILED || s == WL_NO_SSID_AVAIL) {
+      Serial.println("\nAuthentication or SSID failure.");
+      Serial.print("Status: ");
+      Serial.println(wifiStatusToString(s));
+      // Break or reboot; don't loop forever
+      while (true) {
+        delay(5000);
+        Serial.println("WiFi auth failed – check SSID/password and 2.4GHz.");
+      }
+    }
+  }
+
+  Serial.println("\nConnected to the Wi-Fi network: " + String(WiFi.SSID()));
+  Serial.print("Local ESP32 IP: ");
+  Serial.println(WiFi.localIP());
+  Serial.print("RSSI: ");
+  Serial.print(WiFi.RSSI());
+  Serial.println(" dBm");
+}
+
 void setup() {
   Serial.begin(115200);
   Serial.println(F("\n\r---------------------------------------------\n\r"));
@@ -64,20 +113,8 @@ void setup() {
   food_scale.set_scale(FOOD_SCALE_DIVIDER);
 
   if (!production) test_loop(timeClient, food_scale, water_scale, AUGER_PIN, PUMP_PIN);
-  WiFi.mode(WIFI_STA);
-  WiFi.disconnect(true);
-  delay(500);
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("Connecting");
-  while (WiFi.status() != WL_CONNECTED) { // Wait for connection
-    delay(10000);
-    Serial.print(".");
-  }
-  Serial.print("\n");
-  Serial.print("Connected to the Wi-Fi network: ");
-  Serial.println(WiFi.SSID());
-  Serial.print("Local ESP32 IP: ");
-  Serial.println(WiFi.localIP());
+  
+  connectWiFi();
 
   timeClient.begin();
 
