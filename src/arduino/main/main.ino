@@ -48,6 +48,27 @@ SMTPClient smtp(ssl_client);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "north-america.pool.ntp.org", -18000, 60000);
 
+void scanAndPrintNetworks() {
+  Serial.println("Scanning networks...");
+  int n = WiFi.scanNetworks();
+  if (n == 0) {
+    Serial.println("No networks found.");
+    return;
+  }
+  for (int i = 0; i < n; i++) {
+    Serial.print(i + 1);
+    Serial.print(": ");
+    Serial.print(WiFi.SSID(i));
+    Serial.print(" (");
+    Serial.print(WiFi.RSSI(i));
+    Serial.print(" dBm, ch ");
+    Serial.print(WiFi.channel(i));
+    Serial.print(")");
+    if (WiFi.encryptionType(i) == WIFI_AUTH_OPEN) Serial.print(" [OPEN]");
+    Serial.println();
+  }
+}
+
 void connectWiFi() {
   WiFi.mode(WIFI_STA);
   // Optionally: WiFi.disconnect(false); // don't erase credentials unless you need to
@@ -113,7 +134,8 @@ void setup() {
   food_scale.set_scale(FOOD_SCALE_DIVIDER);
 
   if (!production) test_loop(timeClient, food_scale, water_scale, AUGER_PIN, PUMP_PIN);
-  
+
+  scanAndPrintNetworks();
   connectWiFi();
 
   timeClient.begin();
